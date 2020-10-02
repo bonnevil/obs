@@ -2,7 +2,7 @@
 # Ansible Playbook to deploy OBS according to 
 # https://github.com/OSEC-pl/obs/blob/master/setup/rhel8.txt
 #
-# Copyright 2020 Steven Bonneville 
+# Copyright 2020 Steven Bonneville, Piotr Baranowski
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 # limitations under the License.
 
 - name: Configure OBS on RHEL 8
-  hosts: all
+  hosts: localhost
   become: yes
 
   vars:
@@ -54,16 +54,29 @@
         cmd: dnf config-manager --enable PowerTools
       when: ansible_distribution == 'CentOS'
 
+    - name: Enable CodeReady Builder for RHEL8
+      rhsm_repository:
+        name: codeready-builder-for-rhel-8-x86_64-rpms
+        state: enabled
+      when: ansible_distribution == 'RedHat'
+
     - name: Build tools are present
       yum:
         name: "{{ rhel8_build_tools }}"
         state: latest
 
-    - name: Make sure EPEL is enabled
+    - name: Make sure EPEL is enabled in RHEL8
       yum:
         name: https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
         state: latest
         disable_gpg_check: yes
+      when: ansible_distribution == 'RedHat'
+      
+    - name: Make sure EPEL is enabled in CentOS8
+      yum:
+        name: epel-release
+        state: latest
+      when: ansible_distribution == 'CentOS'     
 
     - name: Make sure RPMFusion is enabled
       yum:
@@ -84,7 +97,7 @@
       file:
         path: /tmp/buildtree
         state: directory
-        mode: 1777
+        mode: 1755
 
     - name: Prepare the kernel module source
       git:
@@ -106,7 +119,7 @@
       command: 
         cmd: depmod -a
 
-    - name: Check the module config file
+    - name: Create the module config file
       copy:
         dest: /etc/modprobe.d/v4l2loopback.conf
         content: 'options v4l2loopback exclusive_caps=1 card_label="OBS Virtual Cam" devices=1 video_nr=10'
